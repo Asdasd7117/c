@@ -5,12 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>تعديل الفيديو</title>
 
-  <!-- رابط محدث ومستقر -->
+  <!-- الرابط الصحيح لـ FFmpeg -->
   <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.min.js"></script>
 
   <style>
-    body { font-family: sans-serif; text-align: center; padding: 20px; direction: rtl; }
-    video { max-width: 100%; margin-top: 20px; border: 2px solid #ddd; border-radius: 10px; }
+    body { font-family: sans-serif; text-align: center; padding: 20px; }
+    video { max-width: 100%; margin-top: 20px; border: 2px solid #ccc; border-radius: 8px; }
     input, button { margin: 5px; padding: 10px; font-size: 16px; }
     button { background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
     button:hover { background: #0056b3; }
@@ -30,9 +30,9 @@
   <a id="downloadLink" style="display:block;margin-top:20px; color: #007bff; font-weight: bold;"></a>
 
   <script>
-    // تأكد من تحميل FFmpeg
+    // إنشاء FFmpeg بشكل صحيح
     const ffmpeg = FFmpeg.createFFmpeg({ log: true });
-    let videoFile;
+    let videoFile = null;
 
     const videoUploader = document.getElementById('videoUploader');
     const videoPlayer = document.getElementById('videoPlayer');
@@ -42,66 +42,69 @@
     const textColorInput = document.getElementById('textColor');
     const downloadLink = document.getElementById('downloadLink');
 
-    // تحميل الفيديو
+    // رفع الفيديو
     videoUploader.addEventListener('change', (e) => {
       videoFile = e.target.files[0];
-      if (!videoFile) return;
-      videoPlayer.src = URL.createObjectURL(videoFile);
+      if (videoFile) {
+        videoPlayer.src = URL.createObjectURL(videoFile);
+      }
     });
 
     // معالجة الفيديو
     async function processVideo(filterArgs, outputName) {
       if (!videoFile) {
-        alert('اختر فيديو أولاً');
+        alert('يرجى اختيار فيديو أولاً');
         return;
       }
 
-      // تحميل FFmpeg إذا لم يكن محملًا
+      // تحميل FFmpeg إذا لم يكن جاهزًا
       if (!ffmpeg.isLoaded()) {
         console.log("جاري تحميل FFmpeg...");
         await ffmpeg.load();
       }
 
-      // كتابة الملف
-      ffmpeg.FS('writeFile', 'input.mp4', await FFmpeg.fetchFile(videoFile));
+      try {
+        // كتابة الملف في الذاكرة
+        ffmpeg.FS('writeFile', 'input.mp4', await FFmpeg.fetchFile(videoFile));
 
-      // تشغيل الأمر
-      await ffmpeg.run('-i', 'input.mp4', ...filterArgs, outputName);
+        // تشغيل الأمر
+        await ffmpeg.run('-i', 'input.mp4', ...filterArgs, outputName);
 
-      // قراءة المخرجات
-      const data = ffmpeg.FS('readFile', outputName);
-      const blob = new Blob([data.buffer], { type: 'video/mp4' });
-      const url = URL.createObjectURL(blob);
+        // قراءة المخرج
+        const data = ffmpeg.FS('readFile', outputName);
+        const blob = new Blob([data.buffer], { type: 'video/mp4' });
+        const url = URL.createObjectURL(blob);
 
-      videoPlayer.src = url;
-      downloadLink.href = url;
-      downloadLink.download = outputName;
-      downloadLink.textContent = 'تحميل الفيديو المعدل';
+        // عرض الفيديو المعدل
+        videoPlayer.src = url;
+        downloadLink.href = url;
+        downloadLink.download = outputName;
+        downloadLink.textContent = 'تحميل الفيديو المعدل';
+      } catch (err) {
+        console.error("خطأ في معالجة الفيديو:", err);
+        alert("فشل في تعديل الفيديو. جرب فيديو أصغر.");
+      }
     }
 
-    // إضافة نص
+    // زر إضافة نص
     addTextBtn.addEventListener('click', () => {
       const text = overlayTextInput.value.trim() || 'مرحبا';
       const color = textColorInput.value;
-      const output = 'output_text.mp4';
-
       const filter = [
         '-vf',
         `drawtext=text='${text}':fontcolor=${color}:fontsize=40:x=(w-text_w)/2:y=(h-text_h)/2:box=1:boxcolor=black@0.5:boxborderw=5`,
         '-c:a', 'copy'
       ];
-
-      processVideo(filter, output);
+      processVideo(filter, 'output_text.mp4');
     });
 
-    // إضافة لون (مربع)
+    // زر إضافة لون
     addColorBtn.addEventListener('click', () => {
-      const output = 'output_color.mp4';
       const filter = [
         '-vf', 'drawbox=x=50:y=50:w=200:h=100:color=red@0.5:t=fill',
         '-c:a', 'copy'
       ];
-      processVideo(filter, output);
+      processVideo(filter, 'output_color.mp4');
     });
   </script>
 
