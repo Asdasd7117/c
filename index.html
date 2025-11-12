@@ -5,108 +5,97 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>تعديل الفيديو</title>
 
-  <!-- الرابط الصحيح لـ FFmpeg -->
+  <!-- رابط FFmpeg الصحيح -->
   <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.min.js"></script>
 
   <style>
-    body { font-family: sans-serif; text-align: center; padding: 20px; }
-    video { max-width: 100%; margin-top: 20px; border: 2px solid #ccc; border-radius: 8px; }
-    input, button { margin: 5px; padding: 10px; font-size: 16px; }
-    button { background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
-    button:hover { background: #0056b3; }
+    body {font-family:Arial,sans-serif; text-align:center; padding:20px; background:#f8f9fa;}
+    video {max-width:100%; margin-top:20px; border:2px solid #ddd; border-radius:8px;}
+    input, button {margin:5px; padding:10px; font-size:16px;}
+    button {background:#0d6efd; color:#fff; border:none; border-radius:5px; cursor:pointer;}
+    button:hover {background:#0b5ed7;}
   </style>
 </head>
 <body>
 
-  <h1>تعديل الفيديو</h1>
+<h1>تعديل الفيديو</h1>
 
-  <input type="file" id="videoUploader" accept="video/*"><br>
-  <input type="text" id="overlayText" placeholder="النص الذي تريد إضافته">
-  <input type="color" id="textColor" value="#ffffff">
-  <button id="addTextBtn">إضافة نص</button>
-  <button id="addColorBtn">إضافة لون</button>
+<input type="file" id="videoUploader" accept="video/*"><br>
+<input type="text" id="overlayText" placeholder="النص المراد إضافته">
+<input type="color" id="textColor" value="#ffffff">
+<button id="addTextBtn">إضافة نص</button>
+<button id="addColorBtn">إضافة مربع لون</button>
 
-  <video id="videoPlayer" controls></video>
-  <a id="downloadLink" style="display:block;margin-top:20px; color: #007bff; font-weight: bold;"></a>
+<video id="videoPlayer" controls></video>
+<a id="downloadLink" style="display:block;margin-top:20px;color:#0d6efd;font-weight:bold;"></a>
 
-  <script>
-    // إنشاء FFmpeg بشكل صحيح
-    const ffmpeg = FFmpeg.createFFmpeg({ log: true });
-    let videoFile = null;
+<script>
+  // إنشاء FFmpeg
+  const ffmpeg = FFmpeg.createFFmpeg({ log: false });
+  let videoFile = null;
 
-    const videoUploader = document.getElementById('videoUploader');
-    const videoPlayer = document.getElementById('videoPlayer');
-    const addTextBtn = document.getElementById('addTextBtn');
-    const addColorBtn = document.getElementById('addColorBtn');
-    const overlayTextInput = document.getElementById('overlayText');
-    const textColorInput = document.getElementById('textColor');
-    const downloadLink = document.getElementById('downloadLink');
+  const videoUploader   = document.getElementById('videoUploader');
+  const videoPlayer     = document.getElementById('videoPlayer');
+  const overlayTextInp  = document.getElementById('overlayText');
+  const textColorInp    = document.getElementById('textColor');
+  const addTextBtn      = document.getElementById('addTextBtn');
+  const addColorBtn     = document.getElementById('addColorBtn');
+  const downloadLink    = document.getElementById('downloadLink');
 
-    // رفع الفيديو
-    videoUploader.addEventListener('change', (e) => {
-      videoFile = e.target.files[0];
-      if (videoFile) {
-        videoPlayer.src = URL.createObjectURL(videoFile);
-      }
-    });
+  // رفع الفيديو
+  videoUploader.addEventListener('change', e => {
+    videoFile = e.target.files[0];
+    if (videoFile) videoPlayer.src = URL.createObjectURL(videoFile);
+  });
 
-    // معالجة الفيديو
-    async function processVideo(filterArgs, outputName) {
-      if (!videoFile) {
-        alert('يرجى اختيار فيديو أولاً');
-        return;
-      }
+  // معالجة الفيديو
+  async function process(filterArgs, outName) {
+    if (!videoFile) { alert('اختر فيديو أولاً'); return; }
 
-      // تحميل FFmpeg إذا لم يكن جاهزًا
-      if (!ffmpeg.isLoaded()) {
-        console.log("جاري تحميل FFmpeg...");
-        await ffmpeg.load();
-      }
-
-      try {
-        // كتابة الملف في الذاكرة
-        ffmpeg.FS('writeFile', 'input.mp4', await FFmpeg.fetchFile(videoFile));
-
-        // تشغيل الأمر
-        await ffmpeg.run('-i', 'input.mp4', ...filterArgs, outputName);
-
-        // قراءة المخرج
-        const data = ffmpeg.FS('readFile', outputName);
-        const blob = new Blob([data.buffer], { type: 'video/mp4' });
-        const url = URL.createObjectURL(blob);
-
-        // عرض الفيديو المعدل
-        videoPlayer.src = url;
-        downloadLink.href = url;
-        downloadLink.download = outputName;
-        downloadLink.textContent = 'تحميل الفيديو المعدل';
-      } catch (err) {
-        console.error("خطأ في معالجة الفيديو:", err);
-        alert("فشل في تعديل الفيديو. جرب فيديو أصغر.");
-      }
+    // تحميل FFmpeg إذا لم يكن جاهزًا
+    if (!ffmpeg.isLoaded()) {
+      console.log('جاري تحميل FFmpeg...');
+      await ffmpeg.load();
     }
 
-    // زر إضافة نص
-    addTextBtn.addEventListener('click', () => {
-      const text = overlayTextInput.value.trim() || 'مرحبا';
-      const color = textColorInput.value;
-      const filter = [
-        '-vf',
-        `drawtext=text='${text}':fontcolor=${color}:fontsize=40:x=(w-text_w)/2:y=(h-text_h)/2:box=1:boxcolor=black@0.5:boxborderw=5`,
-        '-c:a', 'copy'
-      ];
-      processVideo(filter, 'output_text.mp4');
-    });
+    try {
+      ffmpeg.FS('writeFile', 'input.mp4', await FFmpeg.fetchFile(videoFile));
+      await ffmpeg.run('-i', 'input.mp4', ...filterArgs, outName);
+      const data = ffmpeg.FS('readFile', outName);
+      const blob = new Blob([data.buffer], { type: 'video/mp4' });
+      const url = URL.createObjectURL(blob);
 
-    // زر إضافة لون
-    addColorBtn.addEventListener('click', () => {
-      const filter = [
-        '-vf', 'drawbox=x=50:y=50:w=200:h=100:color=red@0.5:t=fill',
-        '-c:a', 'copy'
-      ];
-      processVideo(filter, 'output_color.mp4');
-    });
-  </script>
+      videoPlayer.src = url;
+      downloadLink.href = url;
+      downloadLink.download = outName;
+      downloadLink.textContent = 'تحميل الفيديو المعدّل';
+    } catch (e) {
+      console.error(e);
+      alert('حدث خطأ أثناء المعالجة. جرب فيديو أصغر (< 20 ميجا).');
+    }
+  }
+
+  // زر النص
+  addTextBtn.onclick = () => {
+    const txt = overlayTextInp.value.trim() || 'مرحبا';
+    const col = textColorInp.value;
+    const filter = [
+      '-vf',
+      `drawtext=text='${txt}':fontcolor=${col}:fontsize=40:x=(w-text_w)/2:y=(h-text_h)/2:box=1:boxcolor=black@0.5:boxborderw=5`,
+      '-c:a', 'copy'
+    ];
+    process(filter, 'output_text.mp4');
+  };
+
+  // زر المربع الملون
+  addColorBtn.onclick = () => {
+    const filter = [
+      '-vf', 'drawbox=x=50:y=50:w=200:h=100:color=red@0.5:t=fill',
+      '-c:a', 'copy'
+    ];
+    process(filter, 'output_color.mp4');
+  };
+</script>
 
 </body>
 </html>
