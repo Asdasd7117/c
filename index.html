@@ -5,75 +5,170 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>تعديل الفيديو</title>
 
-  <!-- الرابط الصحيح فقط -->
-  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.min.js"></script>
+  <!-- الرابط الصحيح (الذي اختبرته ونجح) -->
+  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.10/dist/umd/ffmpeg.min.js"></script>
 
   <style>
-    body {font-family:Arial; text-align:center; padding:20px; background:#f9f9f9;}
-    video {max-width:100%; margin:20px 0; border:2px solid #ddd; border-radius:8px;}
-    input, button {margin:5px; padding:10px; font-size:16px;}
-    button {background:#007bff; color:#fff; border:none; border-radius:5px;}
-    button:hover {background:#0056b3;}
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      padding: 20px;
+      background: #f8f9fa;
+      direction: rtl;
+    }
+    h1 { color: #333; margin-bottom: 20px; }
+    video {
+      max-width: 100%;
+      margin: 20px 0;
+      border: 3px solid #007bff;
+      border-radius: 12px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+    }
+    input, button {
+      margin: 8px;
+      padding: 12px;
+      font-size: 16px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+    }
+    button {
+      background: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    button:hover { background: #0056b3; }
+    .status {
+      margin: 15px 0;
+      padding: 10px;
+      font-weight: bold;
+      color: #155724;
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      border-radius: 8px;
+    }
+    #downloadLink {
+      display: block;
+      margin: 20px auto;
+      padding: 12px 24px;
+      background: #28a745;
+      color: white;
+      text-decoration: none;
+      border-radius: 8px;
+      font-weight: bold;
+    }
+    #downloadLink:hover { background: #218838; }
   </style>
 </head>
 <body>
 
-<h1>تعديل الفيديو</h1>
-<input type="file" id="videoUploader" accept="video/*"><br>
-<input type="text" id="overlayText" placeholder="النص">
-<input type="color" id="textColor" value="#ffffff">
-<button id="addTextBtn">إضافة نص</button>
-<button id="addColorBtn">إضافة مربع</button>
+  <h1>تعديل الفيديو بسهولة</h1>
+  <div class="status" id="status">جاهز للاستخدام</div>
 
-<video id="videoPlayer" controls></video>
-<a id="downloadLink" style="display:block; margin:20px; color:blue; font-weight:bold;"></a>
+  <input type="file" id="videoUploader" accept="video/*">
+  <br>
+  <input type="text" id="overlayText" placeholder="اكتب النص هنا">
+  <input type="color" id="textColor" value="#ffffff">
+  <br>
+  <button id="addTextBtn">إضافة نص</button>
+  <button id="addColorBtn">إضافة مربع أحمر</button>
 
-<script>
-  const ffmpeg = FFmpeg.createFFmpeg({ log: false });
-  let videoFile = null;
+  <video id="videoPlayer" controls></video>
+  <a id="downloadLink" style="display:none;"></a>
 
-  const videoUploader = document.getElementById('videoUploader');
-  const videoPlayer = document.getElementById('videoPlayer');
-  const overlayText = document.getElementById('overlayText');
-  const textColor = document.getElementById('textColor');
-  const addTextBtn = document.getElementById('addTextBtn');
-  const addColorBtn = document.getElementById('addColorBtn');
-  const downloadLink = document.getElementById('downloadLink');
+  <script>
+    // العناصر
+    const statusEl      = document.getElementById('status');
+    const videoUploader = document.getElementById('videoUploader');
+    const videoPlayer   = document.getElementById('videoPlayer');
+    const overlayText   = document.getElementById('overlayText');
+    const textColor     = document.getElementById('textColor');
+    const addTextBtn    = document.getElementById('addTextBtn');
+    const addColorBtn   = document.getElementById('addColorBtn');
+    const downloadLink  = document.getElementById('downloadLink');
 
-  videoUploader.addEventListener('change', e => {
-    videoFile = e.target.files[0];
-    if (videoFile) videoPlayer.src = URL.createObjectURL(videoFile);
-  });
+    // المتغيرات
+    let videoFile = null;
+    const ffmpeg = FFmpeg.createFFmpeg({ log: false });
 
-  async function process(filter, name) {
-    if (!videoFile) return alert('اختر فيديو أولاً');
-    if (!ffmpeg.isLoaded()) await ffmpeg.load();
+    // رفع الفيديو
+    videoUploader.addEventListener('change', (e) => {
+      videoFile = e.target.files[0];
+      if (videoFile) {
+        videoPlayer.src = URL.createObjectURL(videoFile);
+        statusEl.textContent = `تم رفع: ${videoFile.name} (${(videoFile.size/1024/1024).toFixed(1)} ميغا)`;
+        downloadLink.style.display = 'none';
+      }
+    });
 
-    ffmpeg.FS('writeFile', 'in.mp4', await FFmpeg.fetchFile(videoFile));
-    await ffmpeg.run('-i', 'in.mp4', ...filter, name);
-    const data = ffmpeg.FS('readFile', name);
+    // تحميل FFmpeg (مرة واحدة)
+    async function loadFFmpeg() {
+      if (!ffmpeg.isLoaded()) {
+        statusEl.textContent = 'جاري تحميل FFmpeg... (10-20 ثانية)';
+        await ffmpeg.load();
+        statusEl.textContent = 'FFmpeg جاهز!';
+      }
+    }
 
-    const url = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
-    videoPlayer.src = url;
-    downloadLink.href = url;
-    downloadLink.download = name;
-    downloadLink.textContent = 'تحميل الفيديو المعدّل';
-  }
+    // معالجة الفيديو
+    async function processVideo(filterArgs, outputName) {
+      if (!videoFile) {
+        alert('يرجى رفع فيديو أولاً');
+        return;
+      }
 
-  addTextBtn.onclick = () => {
-    const txt = overlayText.value.trim() || 'مرحبا';
-    const col = textColor.value;
-    process([
-      '-vf', `drawtext=text='${txt}':fontcolor=${col}:fontsize=40:x=(w-text_w)/2:y=(h-text_h)/2:box=1:boxcolor=black@0.5:boxborderw=5`, '-c:a', 'copy'
-    ], 'text.mp4');
-  };
+      await loadFFmpeg();
+      statusEl.textContent = 'جاري المعالجة...';
 
-  addColorBtn.onclick = () => {
-    process([
-      '-vf', 'drawbox=x=50:y=50:w=200:h=100:color=red@0.5:t=fill', '-c:a', 'copy'
-    ], 'color.mp4');
-  };
-</script>
+      try {
+        // كتابة الفيديو
+        ffmpeg.FS('writeFile', 'input.mp4', await FFmpeg.fetchFile(videoFile));
+
+        // تنفيذ الأمر
+        await ffmpeg.run('-i', 'input.mp4', ...filterArgs, outputName);
+
+        // قراءة النتيجة
+        const data = ffmpeg.FS('readFile', outputName);
+        const blob = new Blob([data.buffer], { type: 'video/mp4' });
+        const url = URL.createObjectURL(blob);
+
+        // عرض النتيجة
+        videoPlayer.src = url;
+        downloadLink.href = url;
+        downloadLink.download = outputName;
+        downloadLink.textContent = `تحميل الفيديو المعدّل (${outputName})`;
+        downloadLink.style.display = 'block';
+        statusEl.textContent = 'تم بنجاح!';
+
+      } catch (error) {
+        console.error(error);
+        statusEl.textContent = 'فشل!';
+        alert('فشل في المعالجة. جرب فيديو أصغر من 20 ميغا.');
+      }
+    }
+
+    // إضافة نص
+    addTextBtn.addEventListener('click', () => {
+      const text = overlayText.value.trim() || 'مرحبا';
+      const color = textColor.value;
+      const filter = [
+        '-vf',
+        `drawtext=text='${text}':fontcolor=${color}:fontsize=40:x=(w-text_w)/2:y=(h-text_h)/2:box=1:boxcolor=black@0.5:boxborderw=5`,
+        '-c:a', 'copy'
+      ];
+      processVideo(filter, 'output_text.mp4');
+    });
+
+    // إضافة مربع
+    addColorBtn.addEventListener('click', () => {
+      const filter = [
+        '-vf', 'drawbox=x=50:y=50:w=200:h=100:color=red@0.5:t=fill',
+        '-c:a', 'copy'
+      ];
+      processVideo(filter, 'output_color.mp4');
+    });
+  </script>
 
 </body>
 </html>
