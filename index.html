@@ -2,54 +2,64 @@
 <html lang="ar">
 <head>
   <meta charset="UTF-8">
-  <title>تعديل فيديو - FFmpeg Web</title>
-  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
+  <title>معالجة الفيديو - إضافة نص</title>
+  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
+  <style>
+    body { font-family: sans-serif; text-align: center; margin-top: 40px; direction: rtl; }
+    video { width: 80%; margin-top: 20px; border-radius: 12px; box-shadow: 0 0 10px #ccc; }
+    input, button { margin: 10px; padding: 10px; font-size: 16px; }
+  </style>
 </head>
-<body style="font-family: sans-serif; text-align: center; margin-top: 40px;">
-  <h2>إضافة نص على فيديو</h2>
+<body>
+  <h2>🎬 أضف نص إلى الفيديو</h2>
 
-  <input type="file" id="videoInput" accept="video/*"><br><br>
-  <input type="text" id="textInput" placeholder="أدخل النص"><br><br>
-  <button id="processBtn">ابدأ المعالجة</button>
+  <input type="file" id="videoFile" accept="video/*">
+  <br>
+  <input type="text" id="textInput" placeholder="اكتب النص هنا">
+  <br>
+  <button id="processBtn">بدء المعالجة</button>
 
-  <h3>النتيجة:</h3>
-  <video id="outputVideo" controls width="320"></video>
+  <video id="preview" controls></video>
+  <h3 id="status"></h3>
 
   <script>
     const { createFFmpeg, fetchFile } = FFmpeg;
     const ffmpeg = createFFmpeg({ log: true });
-
-    const input = document.getElementById('videoInput');
+    const fileInput = document.getElementById('videoFile');
+    const preview = document.getElementById('preview');
     const textInput = document.getElementById('textInput');
-    const btn = document.getElementById('processBtn');
-    const outputVideo = document.getElementById('outputVideo');
+    const processBtn = document.getElementById('processBtn');
+    const statusEl = document.getElementById('status');
+    let file;
 
-    btn.onclick = async () => {
-      if (!input.files.length) return alert('اختر ملف فيديو أولاً');
-      if (!textInput.value.trim()) return alert('أدخل نص');
+    // عرض الفيديو عند اختياره
+    fileInput.addEventListener('change', (e) => {
+      file = e.target.files[0];
+      if (file) preview.src = URL.createObjectURL(file);
+    });
 
-      btn.disabled = true;
-      btn.innerText = 'جاري المعالجة...';
+    processBtn.addEventListener('click', async () => {
+      if (!file) return alert('يرجى اختيار فيديو أولا');
+      if (!textInput.value) return alert('اكتب نص لإضافته');
 
+      statusEl.textContent = '⏳ جاري تحميل ffmpeg وتشغيل المعالجة...';
       await ffmpeg.load();
-      ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(input.files[0]));
 
-      const drawText = `drawtext=text='${textInput.value}':fontcolor=white:fontsize=36:x=(w-text_w)/2:y=(h-text_h)/2`;
+      ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(file));
 
+      // تنفيذ الفلتر لإضافة النص
       await ffmpeg.run(
         '-i', 'input.mp4',
-        '-vf', drawText,
+        '-vf', `drawtext=text='${textInput.value}':fontcolor=white:fontsize=40:x=(w-text_w)/2:y=(h-text_h)/2:box=1:boxcolor=black@0.5`,
         '-c:a', 'copy',
         'output.mp4'
       );
 
       const data = ffmpeg.FS('readFile', 'output.mp4');
       const videoURL = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
-      outputVideo.src = videoURL;
-
-      btn.disabled = false;
-      btn.innerText = 'ابدأ المعالجة';
-    };
+      preview.src = videoURL;
+      statusEl.textContent = '✅ تمت المعالجة بنجاح';
+    });
   </script>
 </body>
 </html>
