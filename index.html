@@ -1,89 +1,91 @@
 <!DOCTYPE html>
 <html lang="ar">
 <head>
-  <meta charset="UTF-8">
-  <title>اختبار FFMPEG وتحليل الأخطاء</title>
-  <style>
-    body { background:#121212; color:#eee; font-family:monospace; text-align:center; }
-    video { width:90%; margin-top:10px; border-radius:8px; }
-    button, input { padding:8px 15px; border-radius:6px; margin:5px; border:none; }
-    button { background:#28a745; color:white; cursor:pointer; }
-    #log { white-space:pre-wrap; background:#222; color:#0f0; text-align:left; padding:10px; border-radius:10px; width:90%; margin:auto; margin-top:10px; }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Video Text Editor</title>
+<style>
+  body { font-family: Arial, sans-serif; padding: 20px; }
+  video { max-width: 100%; margin-top: 10px; }
+  input, button { margin: 5px 0; }
+</style>
 </head>
 <body>
-  <h2>🧠 تصحيح أخطاء FFMPEG في المتصفح</h2>
-  <input type="file" id="videoFile" accept="video/*">
-  <br>
-  <video id="preview" controls></video>
-  <br>
-  <input type="text" id="textOverlay" placeholder="أدخل نص overlay">
-  <button id="processBtn">ابدأ المعالجة</button>
 
-  <div id="log">📄 السجل:\n</div>
+<h2>تعديل الفيديو على الويب</h2>
 
-  <script src="https://cdn.jsdelivr.net/npm/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
-  <script>
-    const { createFFmpeg, fetchFile } = FFmpeg;
-    const ffmpeg = createFFmpeg({ log: true });
-    const logBox = document.getElementById('log');
-    const preview = document.getElementById('preview');
-    let fileName = null;
+<input type="file" id="videoInput" accept="video/*"><br>
+<input type="text" id="textInput" placeholder="أدخل النص">
+<input type="color" id="colorInput" value="#ffffff"><br>
+<button id="addTextBtn">إضافة نص</button>
+<button id="addColorBtn">إضافة لون</button>
 
-    // عرض الفيديو مباشرة بعد اختياره
-    document.getElementById('videoFile').addEventListener('change', e => {
-      const file = e.target.files[0];
-      if (file) {
-        fileName = file.name;
-        preview.src = URL.createObjectURL(file);
-        preview.load();
-        log("✅ تم تحميل الفيديو: " + fileName);
-      }
-    });
+<video id="videoOutput" controls></video>
 
-    function log(msg) {
-      console.log(msg);
-      logBox.textContent += "\n" + msg;
-    }
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
+<script>
+const { createFFmpeg, fetchFile } = FFmpeg;
+const ffmpeg = createFFmpeg({ log: true });
 
-    document.getElementById('processBtn').addEventListener('click', async () => {
-      try {
-        if (!fileName) return alert("يرجى اختيار فيديو أولاً");
+const videoInput = document.getElementById('videoInput');
+const videoOutput = document.getElementById('videoOutput');
+const textInput = document.getElementById('textInput');
+const colorInput = document.getElementById('colorInput');
+const addTextBtn = document.getElementById('addTextBtn');
+const addColorBtn = document.getElementById('addColorBtn');
 
-        const file = document.getElementById('videoFile').files[0];
-        const text = document.getElementById('textOverlay').value || "مرحبا بالعالم";
-        const outputName = "output.mp4";
+let uploadedVideo = null;
 
-        log("🚀 بدء التحميل...");
-        if (!ffmpeg.isLoaded()) await ffmpeg.load();
-        log("✅ تم تحميل FFMPEG");
+videoInput.addEventListener('change', async (e) => {
+  uploadedVideo = e.target.files[0];
+  videoOutput.src = URL.createObjectURL(uploadedVideo);
+});
 
-        ffmpeg.FS('writeFile', fileName, await fetchFile(file));
-        log("📦 تم كتابة الملف في النظام الداخلي");
+async function processVideo(cmd, outputFile) {
+  if (!uploadedVideo) {
+    alert('اختر فيديو أولاً');
+    return;
+  }
 
-        const command = [
-          '-i', fileName,
-          '-vf', `drawtext=text='${text}':fontcolor=white:fontsize=40:x=(w-text_w)/2:y=(h-text_h)/2`,
-          '-c:a', 'copy',
-          outputName
-        ];
+  if (!ffmpeg.isLoaded()) await ffmpeg.load();
 
-        log("🔧 أمر المعالجة:\n" + command.join(" "));
-        await ffmpeg.run(...command);
-        log("✅ انتهت المعالجة");
+  // تحميل الفيديو إلى FS الخاصة بـ ffmpeg
+  ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(uploadedVideo));
 
-        const data = ffmpeg.FS('readFile', outputName);
-        log("📂 حجم الفيديو الناتج: " + data.length + " بايت");
+  // تنفيذ أمر ffmpeg
+  await ffmpeg.run(...cmd);
 
-        const videoUrl = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
-        preview.src = videoUrl;
-        preview.load();
-        log("🎬 تم عرض الفيديو الناتج بنجاح");
-      } catch (err) {
-        log("❌ خطأ أثناء التنفيذ:\n" + err.message);
-        console.error(err);
-      }
-    });
-  </script>
+  // قراءة الملف الناتج
+  const data = ffmpeg.FS('readFile', outputFile);
+  const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
+  videoOutput.src = URL.createObjectURL(videoBlob);
+}
+
+// إضافة نص
+addTextBtn.addEventListener('click', async () => {
+  const text = textInput.value || 'مرحبا بالعالم';
+  const color = colorInput.value.replace('#', '');
+  const cmd = [
+    '-i', 'input.mp4',
+    '-vf', `drawtext=text='${text}':fontcolor=#${color}:fontsize=30:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=(h-text_h)/2`,
+    '-c:a', 'copy',
+    'output.mp4'
+  ];
+  await processVideo(cmd, 'output.mp4');
+});
+
+// إضافة لون (مربع)
+addColorBtn.addEventListener('click', async () => {
+  const color = colorInput.value.replace('#', '');
+  const cmd = [
+    '-i', 'input.mp4',
+    '-vf', `drawbox=10:10:width=200:height=100:color=#${color}@0.5:t=fill`,
+    '-c:a', 'copy',
+    'output.mp4'
+  ];
+  await processVideo(cmd, 'output.mp4');
+});
+</script>
+
 </body>
 </html>
