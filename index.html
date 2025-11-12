@@ -1,91 +1,50 @@
 <!DOCTYPE html>
 <html lang="ar">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Video Text Editor</title>
-<style>
-  body { font-family: Arial, sans-serif; padding: 20px; }
-  video { max-width: 100%; margin-top: 10px; }
-  input, button { margin: 5px 0; }
-</style>
+    <meta charset="UTF-8">
+    <title>Video Editor</title>
 </head>
 <body>
+    <input type="file" id="videoFile">
+    <button id="addTextBtn">أضف نص</button>
+    <video id="video" controls width="640"></video>
 
-<h2>تعديل الفيديو على الويب</h2>
+    <!-- أولًا نحمّل FFmpeg.wasm -->
+    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
+    <script>
+        const { createFFmpeg, fetchFile } = FFmpeg;
+        const ffmpeg = createFFmpeg({ log: true });
 
-<input type="file" id="videoInput" accept="video/*"><br>
-<input type="text" id="textInput" placeholder="أدخل النص">
-<input type="color" id="colorInput" value="#ffffff"><br>
-<button id="addTextBtn">إضافة نص</button>
-<button id="addColorBtn">إضافة لون</button>
+        const videoElement = document.getElementById('video');
+        const videoFileInput = document.getElementById('videoFile');
+        const addTextBtn = document.getElementById('addTextBtn');
 
-<video id="videoOutput" controls></video>
+        let videoFile;
 
-<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
-<script>
-const { createFFmpeg, fetchFile } = FFmpeg;
-const ffmpeg = createFFmpeg({ log: true });
+        videoFileInput.addEventListener('change', (e) => {
+            videoFile = e.target.files?.[0];
+            if (videoFile) {
+                videoElement.src = URL.createObjectURL(videoFile);
+            }
+        });
 
-const videoInput = document.getElementById('videoInput');
-const videoOutput = document.getElementById('videoOutput');
-const textInput = document.getElementById('textInput');
-const colorInput = document.getElementById('colorInput');
-const addTextBtn = document.getElementById('addTextBtn');
-const addColorBtn = document.getElementById('addColorBtn');
+        addTextBtn.addEventListener('click', async () => {
+            if (!videoFile) return alert('اختر فيديو أولاً');
+            
+            await ffmpeg.load();
+            ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(videoFile));
 
-let uploadedVideo = null;
+            await ffmpeg.run(
+                '-i', 'input.mp4',
+                '-vf', "drawtext=text='مرحبا بالعالم':fontcolor=white:fontsize=30:x=(w-text_w)/2:y=(h-text_h)/2",
+                '-c:a', 'copy',
+                'output.mp4'
+            );
 
-videoInput.addEventListener('change', async (e) => {
-  uploadedVideo = e.target.files[0];
-  videoOutput.src = URL.createObjectURL(uploadedVideo);
-});
-
-async function processVideo(cmd, outputFile) {
-  if (!uploadedVideo) {
-    alert('اختر فيديو أولاً');
-    return;
-  }
-
-  if (!ffmpeg.isLoaded()) await ffmpeg.load();
-
-  // تحميل الفيديو إلى FS الخاصة بـ ffmpeg
-  ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(uploadedVideo));
-
-  // تنفيذ أمر ffmpeg
-  await ffmpeg.run(...cmd);
-
-  // قراءة الملف الناتج
-  const data = ffmpeg.FS('readFile', outputFile);
-  const videoBlob = new Blob([data.buffer], { type: 'video/mp4' });
-  videoOutput.src = URL.createObjectURL(videoBlob);
-}
-
-// إضافة نص
-addTextBtn.addEventListener('click', async () => {
-  const text = textInput.value || 'مرحبا بالعالم';
-  const color = colorInput.value.replace('#', '');
-  const cmd = [
-    '-i', 'input.mp4',
-    '-vf', `drawtext=text='${text}':fontcolor=#${color}:fontsize=30:box=1:boxcolor=black@0.5:boxborderw=5:x=(w-text_w)/2:y=(h-text_h)/2`,
-    '-c:a', 'copy',
-    'output.mp4'
-  ];
-  await processVideo(cmd, 'output.mp4');
-});
-
-// إضافة لون (مربع)
-addColorBtn.addEventListener('click', async () => {
-  const color = colorInput.value.replace('#', '');
-  const cmd = [
-    '-i', 'input.mp4',
-    '-vf', `drawbox=10:10:width=200:height=100:color=#${color}@0.5:t=fill`,
-    '-c:a', 'copy',
-    'output.mp4'
-  ];
-  await processVideo(cmd, 'output.mp4');
-});
-</script>
-
+            const data = ffmpeg.FS('readFile', 'output.mp4');
+            const url = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
+            videoElement.src = url;
+        });
+    </script>
 </body>
 </html>
