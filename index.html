@@ -1,50 +1,75 @@
 <!DOCTYPE html>
 <html lang="ar">
 <head>
-    <meta charset="UTF-8">
-    <title>Video Editor</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Video Text & Color Editor</title>
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
+<style>
+  body { font-family: sans-serif; text-align: center; padding: 20px; }
+  video { max-width: 100%; margin-top: 20px; }
+  input, button { margin: 5px; padding: 10px; }
+</style>
 </head>
 <body>
-    <input type="file" id="videoFile">
-    <button id="addTextBtn">أضف نص</button>
-    <video id="video" controls width="640"></video>
 
-    <!-- أولًا نحمّل FFmpeg.wasm -->
-    <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
-    <script>
-        const { createFFmpeg, fetchFile } = FFmpeg;
-        const ffmpeg = createFFmpeg({ log: true });
+<h1>تعديل الفيديو</h1>
 
-        const videoElement = document.getElementById('video');
-        const videoFileInput = document.getElementById('videoFile');
-        const addTextBtn = document.getElementById('addTextBtn');
+<input type="file" id="videoUploader" accept="video/*"><br>
+<input type="text" id="overlayText" placeholder="النص الذي تريد إضافته">
+<input type="color" id="textColor" value="#ffffff">
+<button id="addTextBtn">إضافة نص</button>
+<button id="addColorBtn">إضافة لون</button>
+<video id="videoPlayer" controls></video>
+<a id="downloadLink" style="display:block;margin-top:20px;">تحميل الفيديو</a>
 
-        let videoFile;
+<script>
+  const { createFFmpeg, fetchFile } = FFmpeg;
+  const ffmpeg = createFFmpeg({ log: true });
+  let videoFile;
 
-        videoFileInput.addEventListener('change', (e) => {
-            videoFile = e.target.files?.[0];
-            if (videoFile) {
-                videoElement.src = URL.createObjectURL(videoFile);
-            }
-        });
+  const videoUploader = document.getElementById('videoUploader');
+  const videoPlayer = document.getElementById('videoPlayer');
+  const addTextBtn = document.getElementById('addTextBtn');
+  const addColorBtn = document.getElementById('addColorBtn');
+  const overlayTextInput = document.getElementById('overlayText');
+  const textColorInput = document.getElementById('textColor');
+  const downloadLink = document.getElementById('downloadLink');
 
-        addTextBtn.addEventListener('click', async () => {
-            if (!videoFile) return alert('اختر فيديو أولاً');
-            
-            await ffmpeg.load();
-            ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(videoFile));
+  videoUploader.addEventListener('change', async (e) => {
+    videoFile = e.target.files[0];
+    if (!videoFile) return;
+    videoPlayer.src = URL.createObjectURL(videoFile);
+  });
 
-            await ffmpeg.run(
-                '-i', 'input.mp4',
-                '-vf', "drawtext=text='مرحبا بالعالم':fontcolor=white:fontsize=30:x=(w-text_w)/2:y=(h-text_h)/2",
-                '-c:a', 'copy',
-                'output.mp4'
-            );
+  async function processVideo(filterArgs, outputName) {
+    if (!videoFile) { alert('اختر فيديو أولاً'); return; }
+    if (!ffmpeg.isLoaded()) await ffmpeg.load();
+    
+    ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(videoFile));
+    await ffmpeg.run('-i', 'input.mp4', ...filterArgs, outputName);
+    const data = ffmpeg.FS('readFile', outputName);
+    const url = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
+    videoPlayer.src = url;
+    downloadLink.href = url;
+    downloadLink.download = outputName;
+    downloadLink.textContent = 'تحميل الفيديو المعدل';
+  }
 
-            const data = ffmpeg.FS('readFile', 'output.mp4');
-            const url = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
-            videoElement.src = url;
-        });
-    </script>
+  addTextBtn.addEventListener('click', () => {
+    const text = overlayTextInput.value || 'مرحبا';
+    const color = textColorInput.value.replace('#', '');
+    const output = 'output_text.mp4';
+    const filter = [`-vf`, `drawtext=text='${text}':fontcolor=${color}:fontsize=40:x=(w-text_w)/2:y=(h-text_h)/2:box=1:boxcolor=black@0.5:boxborderw=5`, '-c:a', 'copy'];
+    processVideo(filter, output);
+  });
+
+  addColorBtn.addEventListener('click', () => {
+    const output = 'output_color.mp4';
+    const filter = ['-vf', 'drawbox=x=50:y=50:w=200:h=100:color=red@0.5:t=fill', '-c:a', 'copy'];
+    processVideo(filter, output);
+  });
+</script>
+
 </body>
 </html>
