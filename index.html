@@ -21,7 +21,7 @@
 <button id="addTextBtn">إضافة نص</button>
 <button id="addColorBtn">إضافة لون</button>
 <video id="videoPlayer" controls></video>
-<a id="downloadLink" style="display:block;margin-top:20px;">تحميل الفيديو</a>
+<a id="downloadLink" style="display:block;margin-top:20px;"></a>
 
 <script>
   const { createFFmpeg, fetchFile } = FFmpeg;
@@ -58,9 +58,13 @@
 
   addTextBtn.addEventListener('click', () => {
     const text = overlayTextInput.value || 'مرحبا';
-    const color = textColorInput.value.replace('#', '');
+    const color = textColorInput.value; // استخدم اللون مباشرة
     const output = 'output_text.mp4';
-    const filter = [`-vf`, `drawtext=text='${text}':fontcolor=${color}:fontsize=40:x=(w-text_w)/2:y=(h-text_h)/2:box=1:boxcolor=black@0.5:boxborderw=5`, '-c:a', 'copy'];
+    const filter = [
+      '-vf', 
+      `drawtext=text='${text}':fontcolor=${color}:fontsize=40:x=(w-text_w)/2:y=(h-text_h)/2:box=1:boxcolor=black@0.5:boxborderw=5`, 
+      '-c:a', 'copy'
+    ];
     processVideo(filter, output);
   });
 
