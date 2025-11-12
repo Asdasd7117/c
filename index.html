@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <title>تعديل فيديو - FFmpeg Web</title>
+  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.6/dist/ffmpeg.min.js"></script>
+</head>
+<body style="font-family: sans-serif; text-align: center; margin-top: 40px;">
+  <h2>إضافة نص على فيديو</h2>
+
+  <input type="file" id="videoInput" accept="video/*"><br><br>
+  <input type="text" id="textInput" placeholder="أدخل النص"><br><br>
+  <button id="processBtn">ابدأ المعالجة</button>
+
+  <h3>النتيجة:</h3>
+  <video id="outputVideo" controls width="320"></video>
+
+  <script>
+    const { createFFmpeg, fetchFile } = FFmpeg;
+    const ffmpeg = createFFmpeg({ log: true });
+
+    const input = document.getElementById('videoInput');
+    const textInput = document.getElementById('textInput');
+    const btn = document.getElementById('processBtn');
+    const outputVideo = document.getElementById('outputVideo');
+
+    btn.onclick = async () => {
+      if (!input.files.length) return alert('اختر ملف فيديو أولاً');
+      if (!textInput.value.trim()) return alert('أدخل نص');
+
+      btn.disabled = true;
+      btn.innerText = 'جاري المعالجة...';
+
+      await ffmpeg.load();
+      ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(input.files[0]));
+
+      const drawText = `drawtext=text='${textInput.value}':fontcolor=white:fontsize=36:x=(w-text_w)/2:y=(h-text_h)/2`;
+
+      await ffmpeg.run(
+        '-i', 'input.mp4',
+        '-vf', drawText,
+        '-c:a', 'copy',
+        'output.mp4'
+      );
+
+      const data = ffmpeg.FS('readFile', 'output.mp4');
+      const videoURL = URL.createObjectURL(new Blob([data.buffer], { type: 'video/mp4' }));
+      outputVideo.src = videoURL;
+
+      btn.disabled = false;
+      btn.innerText = 'ابدأ المعالجة';
+    };
+  </script>
+</body>
+</html>
